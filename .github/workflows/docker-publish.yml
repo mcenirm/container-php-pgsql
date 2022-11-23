@@ -19,6 +19,7 @@ on:
 env:
   image_name: php-pgsql
   push_github: ${{ github.event_name != 'pull_request' }}
+  push_dockerhub: ${{ github.event_name != 'pull_request' && secrets.DOCKER_HUB_USERNAME != '' }}
 
 
 jobs:
@@ -49,7 +50,7 @@ jobs:
 #      # Install the cosign tool except on PR
 #      # https://github.com/sigstore/cosign-installer
 #      - name: Install cosign
-#        if: env.push_github
+#        if: env.push_github || env.push_dockerhub
 #        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
 #        with:
 #          cosign-release: 'v1.11.0'
@@ -63,10 +64,12 @@ jobs:
         id: prepare_images_list
         env:
           github_repository_owner: ${{ github.repository_owner }}
+          docker_hub_namespace: ${{ secrets.DOCKER_HUB_NAMESPACE }}
         run: |
           exec >> $GITHUB_OUTPUT
           echo 'images<<E9H0Qej0C5j7A0MM'
           [ "$push_github"    = true ] && printf '%q\n' "ghcr.io/$github_repository_owner/$image_name"
+          [ "$push_dockerhub" = true ] && printf '%q\n' "docker.io/$docker_hub_namespace/$image_name"
           echo 'E9H0Qej0C5j7A0MM'
 
       # https://github.com/docker/login-action
@@ -77,6 +80,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # https://github.com/docker/login-action
+      - name: Log in to Docker Hub
+        if: env.push_dockerhub
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
@@ -100,7 +111,7 @@ jobs:
           build-args: |
             FROM_IMAGE=${{ matrix.from_image }}
             FROM_TAG=${{ matrix.from_tag }}
-          push: ${{ env.push_github }}
+          push: ${{ env.push_github || env.push_dockerhub }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -113,7 +124,7 @@ jobs:
 #       # transparency data even for private images, pass --force to cosign below.
 #       # https://github.com/sigstore/cosign
 #       - name: Sign the published Docker image
-#         if: env.push_github
+#         if: env.push_github || env.push_dockerhub
 #         env:
 #           COSIGN_EXPERIMENTAL: "true"
 #         # This step uses the identity token to provision an ephemeral certificate
