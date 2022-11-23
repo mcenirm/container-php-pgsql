@@ -24,6 +24,13 @@ env:
 
 jobs:
   build:
+    strategy:
+      fail-fast: true
+      matrix:
+        from_image:
+          - "docker.io/php"
+        from_tag:
+          - "7.4-apache"
 
     runs-on: ubuntu-latest
     permissions:
@@ -76,6 +83,9 @@ jobs:
         with:
           context: .
           file: Containerfile
+          build-args: |
+            FROM_IMAGE=${{ matrix.from_image }}
+            FROM_TAG=${{ matrix.from_tag }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
