@@ -17,9 +17,8 @@ on:
   workflow_dispatch:
 
 env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/php-pgsql
+  image_name: php-pgsql
+  push_github: ${{ github.event_name != 'pull_request' }}
 
 
 jobs:
@@ -50,7 +49,7 @@ jobs:
 #      # Install the cosign tool except on PR
 #      # https://github.com/sigstore/cosign-installer
 #      - name: Install cosign
-#        if: github.event_name != 'pull_request'
+#        if: push_github
 #        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
 #        with:
 #          cosign-release: 'v1.11.0'
@@ -60,13 +59,22 @@ jobs:
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
 
-      # Login against a Docker registry except on PR
+      - name: Prepare images list
+        id: prepare_images_list
+        env:
+          github_repository_owner: ${{ github.repository_owner }}
+        run: |
+          exec >> $GITHUB_OUTPUT
+          echo 'images<<E9H0Qej0C5j7A0MM'
+          [ "$push_github"    = true ] && printf '%q\n' "ghcr.io/$github_repository_owner/$image_name"
+          echo 'E9H0Qej0C5j7A0MM'
+
       # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
+        if: env.push_github
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -76,7 +84,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@57396166ad8aefe6098280995947635806a0e6ea
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.prepare_images_list.outputs.images }}
           flavor: |
             latest=false
             prefix=${{ matrix.from_tag }}-
@@ -92,7 +100,7 @@ jobs:
           build-args: |
             FROM_IMAGE=${{ matrix.from_image }}
             FROM_TAG=${{ matrix.from_tag }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ push_github }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -105,7 +113,7 @@ jobs:
 #       # transparency data even for private images, pass --force to cosign below.
 #       # https://github.com/sigstore/cosign
 #       - name: Sign the published Docker image
-#         if: ${{ github.event_name != 'pull_request' }}
+#         if: ${{ push_github }}
 #         env:
 #           COSIGN_EXPERIMENTAL: "true"
 #         # This step uses the identity token to provision an ephemeral certificate
