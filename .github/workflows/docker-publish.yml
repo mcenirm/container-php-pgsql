@@ -31,6 +31,9 @@ jobs:
           - "docker.io/php"
         from_tag:
           - "7.4-apache"
+          - "8.0-apache"
+          - "8.1-apache"
+          - "8-apache"
 
     runs-on: ubuntu-latest
     permissions:
